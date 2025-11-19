@@ -1,85 +1,186 @@
+"""
+Advanced Calculator Application with GUI.
+
+This module provides a professional calculator with GUI built using tkinter.
+It follows industry standards with type hints, error handling, and clean architecture.
+"""
+
 import tkinter as tk
 from tkinter import ttk
 import re
+import logging
+from typing import Optional, Dict, Callable, List, Tuple
+from dataclasses import dataclass
+from enum import Enum
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+class CalculatorError(Exception):
+    """Custom exception for calculator-related errors."""
+    pass
+
+
+class OperatorType(Enum):
+    """Enumeration for calculator operators."""
+    ADD = '+'
+    SUBTRACT = '-'
+    MULTIPLY = '×'
+    DIVIDE = '÷'
+    PERCENTAGE = '%'
+    EQUALS = '='
+    CLEAR = 'C'
+    TOGGLE_SIGN = '±'
+
+
+@dataclass
+class ThemeConfig:
+    """Configuration for calculator theme colors."""
+    background: str = '#2C3E50'
+    display: str = '#34495E'
+    button_normal: str = '#3498DB'
+    button_hover: str = '#2980B9'
+    text_primary: str = '#FFFFFF'
+    text_secondary: str = '#ECF0F1'
+
+
+@dataclass
+class WindowConfig:
+    """Configuration for calculator window."""
+    title: str = "Advanced Calculator"
+    width: int = 400
+    height: int = 600
+    resizable: bool = False
+
 
 class Calculator:
-    def __init__(self, master):
-        self.master = master
-        self.setup_window()
-        
-        self.colors = {
-            'background': '#2C3E50',
-            'display': '#34495E',
-            'button_normal': '#3498DB',
-            'button_hover': '#2980B9',
-            'text_primary': '#FFFFFF',
-            'text_secondary': '#ECF0F1'
-        }
-        
-        self.expression = ""
-        self.equation = tk.StringVar()
-        
-        self.create_ui()
-        self.setup_keyboard_bindings()
+    """Professional calculator application with GUI."""
 
-    def setup_window(self):
-        self.master.title("Calculator")
-        self.master.geometry("400x600")
-        self.master.resizable(False, False)
-        self.master.configure(bg='#2C3E50')
+    # Constants
+    MAX_EXPRESSION_LENGTH: int = 20
+    DISPLAY_FONT: Tuple[str, int, str] = ('Arial', 24, 'bold')
+    BUTTON_FONT: Tuple[str, int, str] = ('Arial', 18, 'bold')
 
-    def setup_keyboard_bindings(self):
-        self.master.bind('<Key>', self.handle_keypress)
-        
-        self.master.bind('<Return>', lambda e: self.button_click('='))
-        self.master.bind('<BackSpace>', self.handle_backspace)
-        self.master.bind('<Escape>', lambda e: self.clear())
+    def __init__(self, master: tk.Tk) -> None:
+        """
+        Initialize the calculator application.
 
-    def handle_keypress(self, event):
+        Args:
+            master: Root tkinter window
+
+        Raises:
+            CalculatorError: If initialization fails
+        """
+        try:
+            self.master = master
+            self.theme = ThemeConfig()
+            self.window_config = WindowConfig()
+            self.expression: str = ""
+            self.equation: tk.StringVar = tk.StringVar()
+
+            self._setup_window()
+            self._create_ui()
+            self._setup_keyboard_bindings()
+
+            logger.info("Calculator initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize calculator: {e}")
+            raise CalculatorError(f"Initialization error: {e}") from e
+
+    def _setup_window(self) -> None:
+        """Configure the main window properties."""
+        self.master.title(self.window_config.title)
+        self.master.geometry(
+            f"{self.window_config.width}x{self.window_config.height}"
+        )
+        self.master.resizable(
+            self.window_config.resizable,
+            self.window_config.resizable
+        )
+        self.master.configure(bg=self.theme.background)
+
+    def _setup_keyboard_bindings(self) -> None:
+        """Set up keyboard event bindings."""
+        self.master.bind('<Key>', self._handle_keypress)
+        self.master.bind('<Return>', lambda e: self._button_click('='))
+        self.master.bind('<BackSpace>', self._handle_backspace)
+        self.master.bind('<Escape>', lambda e: self._clear())
+
+    def _handle_keypress(self, event: tk.Event) -> str:
+        """
+        Handle keyboard input events.
+
+        Args:
+            event: Tkinter event object
+
+        Returns:
+            'break' to prevent further event propagation
+        """
         key = event.char
-        
-        if key in '0123456789.+-*/':
-            self.press(key)
-        
-        elif key == '%':
-            self.percentage()
-        
+
+        if key in '0123456789.+-*/%':
+            self._press(key)
+
         return 'break'
 
-    def handle_backspace(self, event):
+    def _handle_backspace(self, event: tk.Event) -> None:
+        """
+        Handle backspace key press.
+
+        Args:
+            event: Tkinter event object
+        """
         if self.expression:
             self.expression = self.expression[:-1]
             self.equation.set(self.expression or '0')
 
-    def create_ui(self):
-        display_frame = self.create_display()
+    def _create_ui(self) -> None:
+        """Create the user interface components."""
+        display_frame = self._create_display()
         display_frame.pack(pady=10, padx=10, fill='x')
 
-        buttons_frame = self.create_buttons()
+        buttons_frame = self._create_buttons()
         buttons_frame.pack(pady=10, padx=10, expand=True, fill='both')
 
-    def create_display(self):
-        display_frame = tk.Frame(self.master, bg=self.colors['background'])
-        
+    def _create_display(self) -> tk.Frame:
+        """
+        Create the display frame.
+
+        Returns:
+            Frame containing the calculator display
+        """
+        display_frame = tk.Frame(self.master, bg=self.theme.background)
+
         result_display = tk.Entry(
-            display_frame, 
-            textvariable=self.equation, 
-            font=('Arial', 24, 'bold'), 
-            justify='right', 
-            bg=self.colors['display'], 
-            fg=self.colors['text_primary'], 
+            display_frame,
+            textvariable=self.equation,
+            font=self.DISPLAY_FONT,
+            justify='right',
+            bg=self.theme.display,
+            fg=self.theme.text_primary,
             borderwidth=0,
-            readonlybackground=self.colors['display'],
+            readonlybackground=self.theme.display,
             state='readonly'
         )
         result_display.pack(fill='x', expand=True)
 
         return display_frame
 
-    def create_buttons(self):
-        buttons_frame = tk.Frame(self.master, bg=self.colors['background'])
-        
-        button_layout = [
+    def _create_buttons(self) -> tk.Frame:
+        """
+        Create the button grid.
+
+        Returns:
+            Frame containing calculator buttons
+        """
+        buttons_frame = tk.Frame(self.master, bg=self.theme.background)
+
+        button_layout: List[List[str]] = [
             ['C', '±', '%', '÷'],
             ['7', '8', '9', '×'],
             ['4', '5', '6', '-'],
@@ -89,7 +190,7 @@ class Calculator:
 
         for row, button_row in enumerate(button_layout):
             for col, button_text in enumerate(button_row):
-                button = self.create_button(buttons_frame, button_text, row, col)
+                button = self._create_button(buttons_frame, button_text, row, col)
                 button.grid(row=row, column=col, sticky='nsew', padx=5, pady=5)
 
         for i in range(5):
@@ -97,91 +198,242 @@ class Calculator:
             buttons_frame.grid_columnconfigure(i, weight=1)
 
         return buttons_frame
+    def _create_button(
+        self,
+        parent: tk.Frame,
+        text: str,
+        row: int,
+        col: int
+    ) -> tk.Button:
+        """
+        Create a styled button.
 
-    def create_button(self, parent, text, row, col):
-        button_style = {
+        Args:
+            parent: Parent widget
+            text: Button text/label
+            row: Grid row position
+            col: Grid column position
+
+        Returns:
+            Configured Button widget
+        """
+        button_style: Dict[str, any] = {
             'text': text,
-            'font': ('Arial', 18, 'bold'),
-            'bg': self.colors['button_normal'],
-            'fg': self.colors['text_primary'],
-            'activebackground': self.colors['button_hover']
+            'font': self.BUTTON_FONT,
+            'bg': self.theme.button_normal,
+            'fg': self.theme.text_primary,
+            'activebackground': self.theme.button_hover,
+            'relief': 'raised',
+            'bd': 1
         }
 
         button = tk.Button(
-            parent, 
-            **button_style, 
-            command=lambda t=text: self.button_click(t)
+            parent,
+            **button_style,
+            command=lambda t=text: self._button_click(t)
         )
-        
-        button.bind('<Enter>', lambda e, b=button: b.configure(bg=self.colors['button_hover']))
-        button.bind('<Leave>', lambda e, b=button: b.configure(bg=self.colors['button_normal']))
+
+        # Add hover effects
+        button.bind(
+            '<Enter>',
+            lambda e, b=button: b.configure(bg=self.theme.button_hover)
+        )
+        button.bind(
+            '<Leave>',
+            lambda e, b=button: b.configure(bg=self.theme.button_normal)
+        )
 
         return button
 
-    def button_click(self, value):
-        if value == 'C':
-            self.clear()
-        elif value == '=':
-            self.calculate()
-        elif value == '±':
-            self.toggle_sign()
-        elif value == '%':
-            self.percentage()
-        else:
-            self.press(value)
+    def _button_click(self, value: str) -> None:
+        """
+        Handle button click events.
 
-    def press(self, value):
-        # Limit input length
-        if len(self.expression) < 20:
-            self.expression += str(value)
-            self.equation.set(self.expression)
+        Args:
+            value: The button value/operator
+        """
+        try:
+            if value == 'C':
+                self._clear()
+            elif value == '=':
+                self._calculate()
+            elif value == '±':
+                self._toggle_sign()
+            elif value == '%':
+                self._percentage()
+            else:
+                self._press(value)
+        except CalculatorError as e:
+            logger.error(f"Calculator error: {e}")
+            self.equation.set("Error")
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            self.equation.set("Error")
 
-    def clear(self):
+    def _press(self, value: str) -> None:
+        """
+        Add a character to the expression.
+
+        Args:
+            value: Character to add
+
+        Raises:
+            CalculatorError: If input validation fails
+        """
+        if len(self.expression) >= self.MAX_EXPRESSION_LENGTH:
+            logger.warning("Expression exceeds maximum length")
+            raise CalculatorError("Expression too long")
+
+        self.expression += str(value)
+        self.equation.set(self.expression)
+
+    def _clear(self) -> None:
+        """Clear the calculator display and expression."""
         self.expression = ""
         self.equation.set("0")
+        logger.debug("Calculator cleared")
 
-    def calculate(self):
+    def _calculate(self) -> None:
+        """
+        Calculate and display the result.
+
+        Raises:
+            CalculatorError: If expression is invalid or calculation fails
+        """
         try:
-            expression = self.expression.replace('÷', '/').replace('×', '*')
-            
-            if re.match(r'^[0-9+\-*/%. ]+$', expression):
-                result = str(eval(expression))
-                self.equation.set(result)
-                self.expression = result
-            else:
-                self.equation.set("Error")
-                self.expression = ""
-        except Exception:
-            self.equation.set("Error")
-            self.expression = ""
+            if not self.expression:
+                raise CalculatorError("No expression to calculate")
 
-    def toggle_sign(self):
-        if self.expression and self.expression[0] == '-':
+            # Replace display symbols with Python operators
+            expression = self.expression.replace('÷', '/').replace('×', '*')
+
+            # Validate expression format
+            if not self._validate_expression(expression):
+                raise CalculatorError("Invalid expression format")
+
+            # Evaluate using eval with restricted namespace for safety
+            result = self._safe_eval(expression)
+
+            # Format result
+            formatted_result = self._format_result(result)
+            self.equation.set(formatted_result)
+            self.expression = formatted_result
+
+            logger.info(f"Calculation: {expression} = {formatted_result}")
+
+        except (ValueError, ZeroDivisionError, SyntaxError) as e:
+            logger.error(f"Calculation error: {e}")
+            raise CalculatorError(f"Calculation failed: {e}") from e
+
+    def _validate_expression(self, expression: str) -> bool:
+        """
+        Validate the mathematical expression.
+
+        Args:
+            expression: Expression to validate
+
+        Returns:
+            True if valid, False otherwise
+        """
+        # Allow digits, operators, decimal point, and parentheses
+        pattern = r'^[\d+\-*/.() ]+$'
+        return bool(re.match(pattern, expression))
+
+    def _safe_eval(self, expression: str) -> float:
+        """
+        Safely evaluate a mathematical expression.
+
+        Args:
+            expression: Expression to evaluate
+
+        Returns:
+            Calculated result
+
+        Raises:
+            CalculatorError: If evaluation fails
+        """
+        try:
+            # Use restricted namespace for security
+            result = eval(expression, {"__builtins__": {}}, {})
+            if not isinstance(result, (int, float)):
+                raise CalculatorError("Invalid result type")
+            return float(result)
+        except Exception as e:
+            raise CalculatorError(f"Evaluation error: {e}") from e
+
+    @staticmethod
+    def _format_result(result: float) -> str:
+        """
+        Format the calculation result.
+
+        Args:
+            result: Numeric result
+
+        Returns:
+            Formatted result string
+        """
+        # Round to avoid floating-point precision issues
+        rounded = round(result, 10)
+
+        # Remove unnecessary decimal places
+        if rounded == int(rounded):
+            return str(int(rounded))
+        else:
+            return str(rounded)
+
+    def _toggle_sign(self) -> None:
+        """Toggle the sign of the current expression."""
+        if not self.expression:
+            return
+
+        if self.expression[0] == '-':
             self.expression = self.expression[1:]
         else:
             self.expression = '-' + self.expression
+
         self.equation.set(self.expression)
+        logger.debug(f"Sign toggled: {self.expression}")
 
-    def percentage(self):
+    def _percentage(self) -> None:
+        """Convert the current expression to a percentage."""
         try:
-            result = str(float(self.expression) / 100)
-            self.equation.set(result)
-            self.expression = result
-        except:
-            self.equation.set("Error")
-            self.expression = ""
+            if not self.expression:
+                raise CalculatorError("No value to convert")
 
-def main():
-    root = tk.Tk()
-    root.title("Advanced Calculator")
-    
+            result = float(self.expression) / 100
+            formatted_result = self._format_result(result)
+            self.equation.set(formatted_result)
+            self.expression = formatted_result
+
+            logger.info(f"Percentage calculation: {self.expression}")
+
+        except ValueError as e:
+            logger.error(f"Percentage error: {e}")
+            raise CalculatorError("Invalid value for percentage") from e
+
+
+def main() -> None:
+    """Main entry point for the calculator application."""
     try:
-        root.iconbitmap('calculator_icon.ico')
-    except:
-        pass
-    
-    app = Calculator(root)
-    root.mainloop()
+        root = tk.Tk()
+        root.title("Advanced Calculator")
+
+        # Try to set icon if available
+        try:
+            root.iconbitmap('calculator_icon.ico')
+        except (tk.TclError, FileNotFoundError):
+            logger.debug("Icon file not found, using default")
+
+        app = Calculator(root)
+        root.mainloop()
+
+    except CalculatorError as e:
+        logger.error(f"Fatal calculator error: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}")
+        raise
+
 
 if __name__ == "__main__":
     main()
